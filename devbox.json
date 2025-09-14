@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
+  "packages": [
+    "elmPackages.lamdera@latest",
+    "elmPackages.elm-format@latest",
+    "elmPackages.elm-test@latest",
+    "elmPackages.elm-review@latest"
+  ],
+  "shell": {
+    "init_hook": ["devbox list"],
+    "scripts": {
+      "watch": ["open http://0.0.0.0:8000", "lamdera live"]
+    }
+  }
+}

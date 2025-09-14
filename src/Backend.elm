@@ -1,4 +1,4 @@
-module Backend exposing (..)
+module Backend exposing (Model, app)
 
 import Lamdera exposing (ClientId, SessionId)
 import Types exposing (..)
@@ -13,7 +13,7 @@ app =
         { init = init
         , update = update
         , updateFromFrontend = updateFromFrontend
-        , subscriptions = \m -> Sub.none
+        , subscriptions = \_ -> Sub.none
         }
 
 

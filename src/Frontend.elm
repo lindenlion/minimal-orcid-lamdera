@@ -1,4 +1,4 @@
-module Frontend exposing (..)
+module Frontend exposing (Model, app)
 
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
@@ -20,7 +20,7 @@ app =
         , onUrlChange = UrlChanged
         , update = update
         , updateFromBackend = updateFromBackend
-        , subscriptions = \m -> Sub.none
+        , subscriptions = \_ -> Sub.none
         , view = view
         }
 

@@ -7,7 +7,8 @@ import Url exposing (Url)
 
 type alias FrontendModel =
     { key : Key
-    , message : String
+    , linden : Int
+    , lion : Int
     }
 
 
@@ -20,6 +21,8 @@ type FrontendMsg
     = UrlClicked UrlRequest
     | UrlChanged Url
     | NoOpFrontendMsg
+    | Linden Int
+    | Lion Int
 
 
 type ToBackend

@@ -2,9 +2,10 @@ module Frontend exposing (Model, app)
 
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
-import Html
-import Html.Attributes as Attr
+import Html as H
+import Html.Attributes as A
 import Lamdera
+import Random
 import Types exposing (..)
 import Url
 
@@ -28,9 +29,10 @@ app =
 init : Url.Url -> Nav.Key -> ( Model, Cmd FrontendMsg )
 init url key =
     ( { key = key
-      , message = "Welcome to Lamdera! You're looking at the auto-generated base implementation. Check out src/Frontend.elm to start coding!"
+      , linden = 0
+      , lion = 0
       }
-    , Cmd.none
+    , Cmd.batch [ Random.generate Linden (Random.int 0 31), Random.generate Lion (Random.int 0 31) ]
     )
 
 
@@ -55,6 +57,12 @@ update msg model =
         NoOpFrontendMsg ->
             ( model, Cmd.none )
 
+        Linden i ->
+            ( { model | linden = i }, Cmd.none )
+
+        Lion i ->
+            ( { model | lion = i }, Cmd.none )
+
 
 updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
 updateFromBackend msg model =
@@ -67,13 +75,36 @@ view : Model -> Browser.Document FrontendMsg
 view model =
     { title = ""
     , body =
-        [ Html.div [ Attr.style "text-align" "center", Attr.style "padding-top" "40px" ]
-            [ Html.img [ Attr.src "https://lamdera.app/lamdera-logo-black.png", Attr.width 150 ] []
-            , Html.div
-                [ Attr.style "font-family" "sans-serif"
-                , Attr.style "padding-top" "40px"
-                ]
-                [ Html.text model.message ]
+        [ H.div
+            [ A.style "margin" "20px auto"
+            , A.style "width" "240px"
+            , A.style "display" "block"
             ]
+            [ H.div
+                [ A.id "linden"
+                , A.title "linden"
+                , A.style "background-image" "url('https://lindenlion.net/logo/lindenlion.jpg')"
+                , A.style "height" "120px"
+                , A.style "width" "120px"
+                , A.style "background-position" <| "-15px " ++ String.fromInt (model.linden * 150 - 15) ++ "px"
+                , A.style "float" "inline-start"
+                , A.style "color" "transparent"
+                ]
+                [ H.text "linden" ]
+            , H.div
+                [ A.id "lion"
+                , A.title "lion"
+                , A.style "background-image" "url('https://lindenlion.net/logo/lindenlion.jpg')"
+                , A.style "height" "100px"
+                , A.style "width" "100px"
+                , A.style "background-position" <| "125px " ++ String.fromInt (model.linden * 150 - 25) ++ "px"
+                , A.style "float" "inline-end"
+                , A.style "position" "relative"
+                , A.style "top" "20px"
+                , A.style "color" "transparent"
+                ]
+                [ H.text "lion" ]
+            ]
+        , H.p [ A.style "clear" "both", A.style "text-align" "center", A.style "padding" "40px" ] [ H.text "Hello, world" ]
         ]
     }

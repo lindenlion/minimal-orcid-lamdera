@@ -1,5 +1,7 @@
 module Frontend exposing (Model, app)
 
+import Auth
+import Auth.Common exposing (Flow(..))
 import Browser exposing (UrlRequest(..))
 import Browser.Navigation as Nav
 import Html as H
@@ -31,6 +33,9 @@ init url key =
     ( { key = key
       , linden = 0
       , lion = 0
+      , login = NotLogged
+      , authFlow = Idle
+      , authRedirectBaseUrl = { url | query = Nothing, fragment = Nothing }
       }
     , Cmd.batch [ Random.generate Linden (Random.int 0 31), Random.generate Lion (Random.int 0 31) ]
     )
@@ -51,10 +56,7 @@ update msg model =
                     , Nav.load url
                     )
 
-        UrlChanged url ->
-            ( model, Cmd.none )
-
-        NoOpFrontendMsg ->
+        UrlChanged _ ->
             ( model, Cmd.none )
 
         Linden i ->
@@ -67,8 +69,11 @@ update msg model =
 updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
 updateFromBackend msg model =
     case msg of
-        NoOpToFrontend ->
-            ( model, Cmd.none )
+        AuthToFrontend authMsg ->
+            Auth.updateFromBackend authMsg model
+
+        AuthSuccess userInfo ->
+            ( { model | login = LoggedIn userInfo }, Nav.pushUrl model.key "/" )
 
 
 view : Model -> Browser.Document FrontendMsg

@@ -1,5 +1,8 @@
 module Backend exposing (Model, app)
 
+import Auth
+import Auth.Flow
+import Dict
 import Lamdera exposing (ClientId, SessionId)
 import Types exposing (..)
 
@@ -19,7 +22,10 @@ app =
 
 init : ( Model, Cmd BackendMsg )
 init =
-    ( { message = "Hello!" }
+    ( { message = "Hello!"
+      , pendingAuths = Dict.empty
+      , sessions = Dict.empty
+      }
     , Cmd.none
     )
 
@@ -27,12 +33,12 @@ init =
 update : BackendMsg -> Model -> ( Model, Cmd BackendMsg )
 update msg model =
     case msg of
-        NoOpBackendMsg ->
-            ( model, Cmd.none )
+        AuthBackendMsg authMsg ->
+            Auth.Flow.backendUpdate (Auth.backendConfig model) authMsg
 
 
 updateFromFrontend : SessionId -> ClientId -> ToBackend -> Model -> ( Model, Cmd BackendMsg )
 updateFromFrontend sessionId clientId msg model =
     case msg of
-        NoOpToBackend ->
-            ( model, Cmd.none )
+        AuthToBackend authMsg ->
+            Auth.Flow.updateFromFrontend (Auth.backendConfig model) clientId sessionId authMsg model

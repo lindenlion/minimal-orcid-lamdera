@@ -24,14 +24,14 @@ configuration :
             backendModel
 configuration clientId clientSecret =
     ProtocolOAuth
-        { id = "OAuthGoogle"
-        , authorizationEndpoint = { defaultHttpsUrl | host = "accounts.google.com", path = "/o/oauth2/v2/auth" }
-        , tokenEndpoint = { defaultHttpsUrl | host = "oauth2.googleapis.com", path = "/token" }
-        , logoutEndpoint = Home { returnPath = "/logout/OAuthGoogle/callback" }
-        , allowLoginQueryParameters = False
+        { id = "OAuthOrcid"
+        , authorizationEndpoint = { defaultHttpsUrl | host = "sandbox.orcid.org", path = "/oauth/authorize" }
+        , tokenEndpoint = { defaultHttpsUrl | host = "sandbox.orcid.org", path = "/oauth/token" }
+        , logoutEndpoint = Home { returnPath = "/signout" }
+        , allowLoginQueryParameters = True
         , clientId = clientId
         , clientSecret = clientSecret
-        , scope = [ "openid email profile" ]
+        , scope = [ "openid" ]
         , getUserInfo = getUserInfo
         , onFrontendCallbackInit = Auth.Protocol.OAuth.onFrontendCallbackInit
         , placeholder = \_ -> ()
@@ -87,29 +87,30 @@ getUserInfo authenticationSuccess =
                                 token.claims.metadata
                         in
                         Result.map4
-                            (\email email_verified given_name family_name ->
-                                { email = email
-                                , email_verified = email_verified
-                                , given_name = given_name
+                            (\name family_name given_name sub ->
+                                { name = name
                                 , family_name = family_name
+                                , given_name = given_name
+                                , sub = sub
                                 }
                             )
-                            (extract "email" Json.string meta)
-                            (extract "email_verified" Json.bool meta)
-                            (extract "given_name" Json.string meta)
+                            (extractOptional Nothing "name" (Json.string |> Json.nullable) meta)
                             (extractOptional Nothing "family_name" (Json.string |> Json.nullable) meta)
+                            (extract "given_name" Json.string meta)
+                            (extract "sub" Json.string meta)
                     )
+
+        debug =
+            Debug.log "tokenR: " tokenR
     in
     Task.mapError (Auth.Common.ErrAuthString << HttpHelpers.httpErrorToString) <|
         case stuff of
             Ok result ->
                 Task.succeed
-                    { email = result.email
-                    , name =
-                        [ result.given_name, Maybe.withDefault "" result.family_name ]
-                            |> String.join " "
-                            |> nothingIfEmpty
-                    , username = Nothing
+                    { email = Nothing
+                    , name = Just <| Maybe.withDefault result.given_name result.name -- append family_name to given_name if available
+                    , username = Just result.sub
+                    , unique = result.sub
                     }
 
             Err err ->

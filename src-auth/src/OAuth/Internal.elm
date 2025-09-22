@@ -1,19 +1,40 @@
 module OAuth.Internal exposing
     ( AuthenticationError
     , AuthenticationSuccess
+    , Authorization
     , AuthorizationError
     , RequestParts
     , authenticationErrorDecoder
     , authenticationSuccessDecoder
     , authorizationErrorParser
+    , decoderFromJust
+    , decoderFromResult
     , errorDecoder
+    , errorDescriptionDecoder
+    , errorDescriptionParser
     , errorParser
+    , errorUriDecoder
+    , errorUriParser
+    , expiresInDecoder
+    , expiresInParser
+    , extractTokenString
+    , lenientScopeDecoder
+    , makeAuthorizationUrl
     , makeHeaders
     , makeRedirectUri
     , makeRequest
     , parseUrlQuery
+    , protocolToString
+    , refreshTokenDecoder
+    , scopeDecoder
+    , scopeParser
+    , spaceSeparatedListParser
     , stateParser
+    , tokenDecoder
+    , tokenParser
     , urlAddExtraFields
+    , urlAddList
+    , urlAddMaybe
     )
 
 import Base64.Encode as Base64
@@ -75,6 +96,19 @@ idJwtDecoder =
     Json.maybe <| Json.field "id_token" Json.string
 
 
+{-| Json decoder for a scope, allowing comma- or space-separated scopes
+-}
+lenientScopeDecoder : Json.Decoder (List String)
+lenientScopeDecoder =
+    Json.map (Maybe.withDefault []) <|
+        Json.maybe <|
+            Json.field "scope" <|
+                Json.oneOf
+                    [ Json.list Json.string
+                    , Json.map (String.split ",") Json.string
+                    ]
+
+
 {-| Json decoder for an access token
 -}
 tokenDecoder : Json.Decoder Token
@@ -124,6 +158,19 @@ decoderFromJust msg =
     Maybe.map Json.succeed >> Maybe.withDefault (Json.fail msg)
 
 
+{-| Combinator for JSON decoders to extact values from a `Result _ _` or fail
+with an appropriate message
+-}
+decoderFromResult : Result String a -> Json.Decoder a
+decoderFromResult res =
+    case res of
+        Err msg ->
+            Json.fail msg
+
+        Ok a ->
+            Json.succeed a
+
+
 
 --
 -- Query Parsers
@@ -138,10 +185,27 @@ authorizationErrorParser errorCode =
         stateParser
 
 
+tokenParser : Query.Parser (Maybe Token)
+tokenParser =
+    Query.map2 makeToken
+        (Query.string "token_type")
+        (Query.string "access_token")
+
+
 errorParser : (String -> e) -> Query.Parser (Maybe e)
 errorParser errorCodeFromString =
     Query.map (Maybe.map errorCodeFromString)
         (Query.string "error")
+
+
+expiresInParser : Query.Parser (Maybe Int)
+expiresInParser =
+    Query.int "expires_in"
+
+
+scopeParser : Query.Parser (List String)
+scopeParser =
+    spaceSeparatedListParser "scope"
 
 
 stateParser : Query.Parser (Maybe String)
@@ -159,6 +223,44 @@ errorUriParser =
     Query.string "error_uri"
 
 
+spaceSeparatedListParser : String -> Query.Parser (List String)
+spaceSeparatedListParser param =
+    Query.map
+        (\s ->
+            case s of
+                Nothing ->
+                    []
+
+                Just str ->
+                    String.split " " str
+        )
+        (Query.string param)
+
+
+urlAddList : String -> List String -> List QueryParameter -> List QueryParameter
+urlAddList param xs qs =
+    qs
+        ++ (case xs of
+                [] ->
+                    []
+
+                _ ->
+                    [ Builder.string param (String.join " " xs) ]
+           )
+
+
+urlAddMaybe : String -> Maybe String -> List QueryParameter -> List QueryParameter
+urlAddMaybe param ms qs =
+    qs
+        ++ (case ms of
+                Nothing ->
+                    []
+
+                Just s ->
+                    [ Builder.string param s ]
+           )
+
+
 urlAddExtraFields : Dict String String -> List QueryParameter -> List QueryParameter
 urlAddExtraFields extraFields zero =
     Dict.foldr (\k v qs -> Builder.string k v :: qs) zero extraFields
@@ -168,6 +270,28 @@ urlAddExtraFields extraFields zero =
 --
 -- Smart Constructors
 --
+
+
+makeAuthorizationUrl : ResponseType -> Dict String String -> Authorization -> Url
+makeAuthorizationUrl responseType extraFields { clientId, url, redirectUri, scope, state } =
+    let
+        query =
+            [ Builder.string "client_id" clientId
+            , Builder.string "redirect_uri" (makeRedirectUri redirectUri)
+            , Builder.string "response_type" (responseTypeToString responseType)
+            ]
+                |> urlAddList "scope" scope
+                |> urlAddMaybe "state" state
+                |> urlAddExtraFields extraFields
+                |> Builder.toQuery
+                |> String.dropLeft 1
+    in
+    case url.query of
+        Nothing ->
+            { url | query = Just query }
+
+        Just baseQuery ->
+            { url | query = Just (baseQuery ++ "&" ++ query) }
 
 
 makeRequest : Json.Decoder success -> (Result Http.Error success -> msg) -> Url -> List Http.Header -> String -> RequestParts msg
@@ -231,6 +355,14 @@ parseUrlQuery url def parser =
     Maybe.withDefault def <| Url.parse (Url.query parser) url
 
 
+{-| Extracts the intrinsic value of a `Token`. Careful with this, we don't have
+access to the `Token` constructors, so it's a bit Houwje-Touwje
+-}
+extractTokenString : Token -> String
+extractTokenString =
+    tokenToString >> String.dropLeft 7
+
+
 
 --
 -- Record Alias Re-Definition
@@ -245,6 +377,15 @@ type alias RequestParts a =
     , expect : Http.Expect a
     , timeout : Maybe Float
     , tracker : Maybe String
+    }
+
+
+type alias Authorization =
+    { clientId : String
+    , url : Url
+    , redirectUri : Url
+    , scope : List String
+    , state : Maybe String
     }
 
 

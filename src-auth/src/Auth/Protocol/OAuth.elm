@@ -1,12 +1,15 @@
-module Auth.Protocol.OAuth exposing (onAuthCallbackReceived, onFrontendCallbackInit)
+module Auth.Protocol.OAuth exposing (..)
 
 import Auth.Common exposing (..)
 import Auth.HttpHelpers as HttpHelpers
 import Browser.Navigation as Navigation
-import Dict
+import Dict exposing (Dict)
 import Http
 import Json.Decode as Json
+import OAuth
 import OAuth.AuthorizationCode as OAuth
+import Process
+import SHA1
 import Task exposing (Task)
 import Time
 import Url exposing (Url)
@@ -21,6 +24,9 @@ onFrontendCallbackInit :
     -> ( { frontendModel | authFlow : Flow, authRedirectBaseUrl : Url }, Cmd frontendMsg )
 onFrontendCallbackInit model methodId origin navigationKey toBackendFn =
     let
+        redirectUri =
+            { origin | query = Nothing, fragment = Nothing }
+
         clearUrl =
             Navigation.replaceUrl navigationKey (Url.toString model.authRedirectBaseUrl)
     in
@@ -63,6 +69,63 @@ accessTokenRequested model methodId code state =
     )
 
 
+initiateSignin isDev sessionId clientId baseUrl config asBackendMsg now backendModel =
+    let
+        signedState =
+            SHA1.toBase64 <|
+                SHA1.fromString <|
+                    (String.fromInt <| Time.posixToMillis <| now)
+                        -- @TODO this needs to be user-injected config
+                        ++ "0x3vd7a"
+                        ++ sessionId
+
+        newPendingAuth : PendingAuth
+        newPendingAuth =
+            { sessionId = sessionId
+            , created = now
+            , state = signedState
+            }
+
+        url =
+            generateSigninUrl baseUrl signedState config
+    in
+    ( { backendModel
+        | pendingAuths = backendModel.pendingAuths |> Dict.insert sessionId newPendingAuth
+      }
+    , Auth.Common.sleepTask
+        isDev
+        (asBackendMsg
+            (AuthSigninInitiatedDelayed_
+                clientId
+                (AuthInitiateSignin url)
+            )
+        )
+    )
+
+
+generateSigninUrl : Url -> Auth.Common.State -> Auth.Common.ConfigurationOAuth frontendMsg backendMsg frontendModel backendModel -> Url
+generateSigninUrl baseUrl state configuration =
+    let
+        queryAdjustedUrl =
+            -- google auth is an example where, at time of writing, query parameters are not allowed in a login redirect url
+            if configuration.allowLoginQueryParameters then
+                baseUrl
+
+            else
+                { baseUrl | query = Nothing }
+
+        authorization =
+            { clientId = configuration.clientId
+            , redirectUri = { queryAdjustedUrl | path = "/login/" ++ configuration.id ++ "/callback" }
+            , scope = configuration.scope
+            , state = Just state
+            , url = configuration.authorizationEndpoint
+            }
+    in
+    authorization
+        |> OAuth.makeAuthorizationUrl
+
+
 onAuthCallbackReceived sessionId clientId method receivedUrl code state now asBackendMsg backendModel =
     ( backendModel
     , validateCallbackToken method.clientId method.clientSecret method.tokenEndpoint receivedUrl code
@@ -70,17 +133,14 @@ onAuthCallbackReceived sessionId clientId method receivedUrl code state now asBa
             (\authenticationResponse ->
                 case backendModel.pendingAuths |> Dict.get sessionId of
                     Just pendingAuth ->
+                        let
+                            authToken =
+                                Just (makeToken method.id authenticationResponse now)
+                        in
                         if pendingAuth.state == state then
                             method.getUserInfo
                                 authenticationResponse
-                                |> Task.map
-                                    (\userInfo ->
-                                        let
-                                            authToken =
-                                                Just (makeToken method.id authenticationResponse now)
-                                        in
-                                        ( userInfo, authToken )
-                                    )
+                                |> Task.map (\userInfo -> ( userInfo, authToken ))
 
                         else
                             Task.fail <| Auth.Common.ErrAuthString "Invalid auth state. Please log in again or report this issue."
@@ -121,6 +181,24 @@ validateCallbackToken clientId clientSecret tokenEndpoint redirectUri code =
     }
         |> Http.task
         |> Task.mapError parseAuthenticationResponseError
+
+
+parseAuthenticationResponse : Result Http.Error OAuth.AuthenticationSuccess -> Result Auth.Common.Error OAuth.AuthenticationSuccess
+parseAuthenticationResponse res =
+    case res of
+        Err (Http.BadBody body) ->
+            case Json.decodeString OAuth.defaultAuthenticationErrorDecoder body of
+                Ok error ->
+                    Err <| Auth.Common.ErrAuthentication error
+
+                _ ->
+                    Err Auth.Common.ErrHTTPGetAccessToken
+
+        Err _ ->
+            Err Auth.Common.ErrHTTPGetAccessToken
+
+        Ok authenticationSuccess ->
+            Ok authenticationSuccess
 
 
 parseAuthenticationResponseError : Http.Error -> Auth.Common.Error

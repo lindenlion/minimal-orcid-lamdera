@@ -1,8 +1,9 @@
 module Backend exposing (Model, app)
 
 import Auth
+import Auth.Common exposing (UserInfo)
 import Auth.Flow
-import Dict
+import Dict exposing (Dict)
 import Lamdera exposing (ClientId, SessionId)
 import Types exposing (..)
 
@@ -16,7 +17,7 @@ app =
         { init = init
         , update = update
         , updateFromFrontend = updateFromFrontend
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = \m -> Sub.none
         }
 
 
@@ -33,12 +34,42 @@ init =
 update : BackendMsg -> Model -> ( Model, Cmd BackendMsg )
 update msg model =
     case msg of
+        NoOpBackendMsg ->
+            ( model, Cmd.none )
+
         AuthBackendMsg authMsg ->
+            let
+                _ =
+                    Debug.log "AUTH BACKEND msg" authMsg
+            in
             Auth.Flow.backendUpdate (Auth.backendConfig model) authMsg
 
 
 updateFromFrontend : SessionId -> ClientId -> ToBackend -> Model -> ( Model, Cmd BackendMsg )
 updateFromFrontend sessionId clientId msg model =
     case msg of
+        NoOpToBackend ->
+            ( model, Cmd.none )
+
         AuthToBackend authMsg ->
             Auth.Flow.updateFromFrontend (Auth.backendConfig model) clientId sessionId authMsg model
+
+        -- send current user info to all open tabs with same session cookie
+        GetUser ->
+            ( model, Lamdera.sendToFrontend sessionId <| UserInfoMsg (findUser sessionId model) )
+
+        Signout ->
+            ( { model | sessions = removeSession sessionId model.sessions }, Lamdera.sendToFrontend sessionId BackendLoggedOut )
+
+        OrcidSignoutRequested2 ->
+            ( model, Lamdera.sendToFrontend sessionId OrcidSignoutRequested3 )
+
+
+removeSession : SessionId -> Dict SessionId UserInfo -> Dict SessionId UserInfo
+removeSession sessionId sessions =
+    Dict.remove sessionId sessions
+
+
+findUser : SessionId -> Model -> Maybe Auth.Common.UserInfo
+findUser sessionId model =
+    Dict.get sessionId model.sessions

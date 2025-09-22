@@ -1,8 +1,15 @@
-module Auth.Common exposing (AuthChallengeReason(..), AuthCode, BackendMsg(..), ClientId, Config, ConfigurationEmailMagicLink, ConfigurationOAuth, Error(..), Flow(..), FrontendMsg(..), LogoutEndpointConfig(..), Method(..), MethodId, PendingAuth, Provider(..), SessionId, State, ToBackend(..), ToFrontend(..), Token, UserInfo, defaultHttpsUrl, nothingIfEmpty)
+module Auth.Common exposing (..)
 
+import Base64.Encode as Base64
 import Browser.Navigation exposing (Key)
+import Bytes exposing (Bytes)
+import Bytes.Encode as Bytes
+import Dict exposing (Dict)
+import Http
+import Json.Decode as Json
 import OAuth
 import OAuth.AuthorizationCode as OAuth
+import Process
 import Task exposing (Task)
 import Time
 import Url exposing (Protocol(..), Url)
@@ -75,25 +82,41 @@ type alias ConfigurationOAuth frontendMsg backendMsg frontendModel backendModel 
     }
 
 
+type alias SessionIdString =
+    String
+
+
 type FrontendMsg
     = AuthSigninRequested Provider
 
 
 type ToBackend
-    = AuthCallbackReceived MethodId Url AuthCode State
+    = AuthSigninInitiated { methodId : MethodId, baseUrl : Url, username : Maybe String }
+    | AuthCallbackReceived MethodId Url AuthCode State
+    | AuthRenewSessionRequested
+    | AuthLogoutRequested
 
 
 type BackendMsg
-    = AuthCallbackReceived_ SessionId ClientId MethodId Url String String Time.Posix
+    = AuthSigninInitiated_ { sessionId : SessionId, clientId : ClientId, methodId : MethodId, baseUrl : Url, now : Time.Posix, username : Maybe String }
+    | AuthSigninInitiatedDelayed_ SessionId ToFrontend
+    | AuthCallbackReceived_ SessionId ClientId MethodId Url String String Time.Posix
     | AuthSuccess SessionId ClientId MethodId Time.Posix (Result Error ( UserInfo, Maybe Token ))
+    | AuthRenewSession SessionId ClientId
+    | AuthLogout SessionId ClientId
 
 
 type ToFrontend
-    = AuthError Error
+    = AuthInitiateSignin Url
+    | AuthError Error
+    | AuthSessionChallenge AuthChallengeReason
 
 
 type AuthChallengeReason
     = AuthSessionMissing
+    | AuthSessionInvalid
+    | AuthSessionExpired
+    | AuthSessionLoggedOut
 
 
 type alias Token =
@@ -110,20 +133,28 @@ type LogoutEndpointConfig
 
 
 type Provider
-    = OAuthGoogle
+    = EmailMagicLink
+    | OAuthGithub
+    | OAuthOrcid
+    | OAuthAuth0
 
 
 type Flow
     = Idle
+    | Requested MethodId
     | Pending
     | Authorized AuthCode String
+    | Authenticated OAuth.Token
+    | Done UserInfo
     | Errored Error
 
 
 type Error
-    = ErrAuthorization OAuth.AuthorizationError
+    = ErrStateMismatch
+    | ErrAuthorization OAuth.AuthorizationError
     | ErrAuthentication OAuth.AuthenticationError
     | ErrHTTPGetAccessToken
+    | ErrHTTPGetUserInfo
       -- Lazy string error until we classify everything nicely
     | ErrAuthString String
 
@@ -141,10 +172,15 @@ type alias AuthCode =
 
 
 type alias UserInfo =
-    { email : String
+    { email : Maybe String
     , name : Maybe String
     , username : Maybe String
+    , unique : String
     }
+
+
+
+--"at_hash",<internals>),("aud",<internals>),("auth_time",<internals>),("exp",<internals>),("family_name",<internals>),("given_name",<internals>),("iat",<internals>),("iss",<internals>),("jti",<internals>),("sub",<internals>)]
 
 
 type alias PendingAuth =
@@ -154,10 +190,34 @@ type alias PendingAuth =
     }
 
 
+type alias PendingEmailAuth =
+    { created : Time.Posix
+    , sessionId : SessionId
+    , username : String
+    , fullname : String
+    , token : String
+    }
+
+
 
 --
 -- Helpers
 --
+
+
+toBytes : List Int -> Bytes
+toBytes =
+    List.map Bytes.unsignedInt8 >> Bytes.sequence >> Bytes.encode
+
+
+base64 : Bytes -> String
+base64 =
+    Base64.bytes >> Base64.encode
+
+
+convertBytes : List Int -> { state : String }
+convertBytes =
+    toBytes >> base64 >> (\state -> { state = state })
 
 
 defaultHttpsUrl : Url
@@ -169,6 +229,19 @@ defaultHttpsUrl =
     , query = Nothing
     , fragment = Nothing
     }
+
+
+sleepTask isDev msg =
+    -- Because in dev the backendmodel is only persisted every 2 seconds, we need to
+    -- make sure we sleep a little before a redirect otherwise we won't have our
+    -- persisted state.
+    (if isDev then
+        Process.sleep 3000
+
+     else
+        Process.sleep 0
+    )
+        |> Task.perform (always msg)
 
 
 nothingIfEmpty s =

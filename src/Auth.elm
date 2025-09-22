@@ -1,6 +1,6 @@
 module Auth exposing (backendConfig, updateFromBackend)
 
-import Auth.Common exposing (UserInfo)
+import Auth.Common exposing (Method(..), UserInfo)
 import Auth.Flow
 import Auth.Method.OAuthOrcid
 import Dict exposing (Dict)
@@ -52,8 +52,14 @@ logout sessionId _ model =
 
 updateFromBackend authToFrontendMsg model =
     case authToFrontendMsg of
+        Auth.Common.AuthInitiateSignin url ->
+            Auth.Flow.startProviderSignin url model
+
         Auth.Common.AuthError err ->
             Auth.Flow.setError model err
+
+        Auth.Common.AuthSessionChallenge _ ->
+            ( model, Cmd.none )
 
 
 renewSession : Lamdera.SessionId -> Lamdera.ClientId -> BackendModel -> ( BackendModel, Cmd BackendMsg )
@@ -75,7 +81,7 @@ handleAuthSuccess backendModel sessionId clientId userInfo _ _ _ =
     let
         sessionsWithOutThisOne : Dict SessionId UserInfo
         sessionsWithOutThisOne =
-            Dict.removeWhen (\_ { email } -> email == userInfo.email) backendModel.sessions
+            Dict.removeWhen (\_ { unique } -> unique == userInfo.unique) backendModel.sessions
 
         newSessions =
             Dict.insert sessionId userInfo sessionsWithOutThisOne
@@ -84,5 +90,5 @@ handleAuthSuccess backendModel sessionId clientId userInfo _ _ _ =
             AuthSuccess userInfo
     in
     ( { backendModel | sessions = newSessions }
-    , Lamdera.sendToFrontend clientId response
+    , Lamdera.sendToFrontend sessionId response
     )

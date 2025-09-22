@@ -1,7 +1,7 @@
 module OAuth exposing
-    ( Token(..), useToken
-    , ErrorCode(..), errorCodeFromString
-    , ResponseType(..), GrantType(..), grantTypeToString
+    ( Token(..), useToken, tokenToString, tokenFromString
+    , ErrorCode(..), errorCodeToString, errorCodeFromString
+    , ResponseType(..), responseTypeToString, GrantType(..), grantTypeToString
     , TokenType, TokenString, makeToken, makeRefreshToken
     )
 
@@ -41,19 +41,19 @@ used.
 
 ## Token
 
-@docs Token, useToken
+@docs Token, useToken, tokenToString, tokenFromString
 
 
 ## ErrorCode
 
-@docs ErrorCode, errorCodeFromString
+@docs ErrorCode, errorCodeToString, errorCodeFromString
 
 
 ## Response & Grant types (Advanced)
 
 The following section can be ignored if you're dealing with a very generic OAuth2.0 implementation. If however, your authorization server does implement some extra features on top of the OAuth2.0 protocol (e.g. OpenID Connect), you will require to tweak response parsers and possibly, response type to cope with these discrepancies. In short, unless you're planning on using `makeTokenRequestWith` or `makeAuthorizationUrlWith`, you most probably won't need any of the functions below.
 
-@docs ResponseType, GrantType, grantTypeToString
+@docs ResponseType, responseTypeToString, GrantType, grantTypeToString
 
 
 ## Decoders & Parsers Utils (advanced)
@@ -157,6 +157,21 @@ tokenToString (Bearer t) =
     "Bearer " ++ t
 
 
+{-| Parse a token from an 'Authorization' header string.
+
+      tokenFromString (tokenToString token) == Just token
+
+-}
+tokenFromString : String -> Maybe Token
+tokenFromString str =
+    case ( String.left 6 str, String.dropLeft 7 str ) of
+        ( "Bearer", t ) ->
+            Just (Bearer t)
+
+        _ ->
+            Nothing
+
+
 
 --
 -- ResponseType / GrandType
@@ -170,12 +185,33 @@ custom response type should the server returns a non-standard response type.
 -}
 type ResponseType
     = Code
+    | Token
+    | CustomResponse String
+
+
+{-| Gets the `String` representation of a `ResponseType`.
+-}
+responseTypeToString : ResponseType -> String
+responseTypeToString r =
+    case r of
+        Code ->
+            "code"
+
+        Token ->
+            "token"
+
+        CustomResponse str ->
+            str
 
 
 {-| Describes the desired type of grant to an authentication.
 -}
 type GrantType
     = AuthorizationCode
+    | Password
+    | ClientCredentials
+    | RefreshToken
+    | CustomGrant String
 
 
 {-| Gets the `String` representation of a `GrantType`
@@ -185,6 +221,18 @@ grantTypeToString g =
     case g of
         AuthorizationCode ->
             "authorization_code"
+
+        Password ->
+            "password"
+
+        ClientCredentials ->
+            "client_credentials"
+
+        RefreshToken ->
+            "refresh_token"
+
+        CustomGrant str ->
+            str
 
 
 
@@ -229,6 +277,36 @@ type ErrorCode
     | ServerError
     | TemporarilyUnavailable
     | Custom String
+
+
+{-| Get the `String` representation of an `ErrorCode`.
+-}
+errorCodeToString : ErrorCode -> String
+errorCodeToString err =
+    case err of
+        InvalidRequest ->
+            "invalid_request"
+
+        UnauthorizedClient ->
+            "unauthorized_client"
+
+        AccessDenied ->
+            "access_denied"
+
+        UnsupportedResponseType ->
+            "unsupported_response_type"
+
+        InvalidScope ->
+            "invalid_scope"
+
+        ServerError ->
+            "server_error"
+
+        TemporarilyUnavailable ->
+            "temporarily_unavailable"
+
+        Custom str ->
+            str
 
 
 {-| Build a string back into an error code. Returns `Custom _`

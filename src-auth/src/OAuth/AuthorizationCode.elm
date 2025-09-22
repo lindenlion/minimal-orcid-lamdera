@@ -1,8 +1,11 @@
 module OAuth.AuthorizationCode exposing
-    ( parseCode, AuthorizationResult, AuthorizationResultWith(..), AuthorizationError, AuthorizationSuccess, AuthorizationCode
+    ( makeAuthorizationUrl, Authorization, parseCode, AuthorizationResult, AuthorizationResultWith(..), AuthorizationError, AuthorizationSuccess, AuthorizationCode
     , makeTokenRequest, Authentication, Credentials, AuthenticationSuccess, AuthenticationError, RequestParts
     , defaultAuthenticationSuccessDecoder, defaultAuthenticationErrorDecoder
-    , Parsers
+    , makeAuthorizationUrlWith
+    , makeTokenRequestWith
+    , defaultExpiresInDecoder, defaultScopeDecoder, lenientScopeDecoder, defaultTokenDecoder, defaultRefreshTokenDecoder, defaultErrorDecoder, defaultErrorDescriptionDecoder, defaultErrorUriDecoder
+    , parseCodeWith, Parsers, defaultParsers, defaultCodeParser, defaultErrorParser, defaultAuthorizationSuccessParser, defaultAuthorizationErrorParser
     )
 
 {-| The authorization code grant type is used to obtain both access
@@ -62,7 +65,7 @@ request.
 
 ## Authorize
 
-@docs parseCode, AuthorizationResult, AuthorizationResultWith, AuthorizationError, AuthorizationSuccess, AuthorizationCode
+@docs makeAuthorizationUrl, Authorization, parseCode, AuthorizationResult, AuthorizationResultWith, AuthorizationError, AuthorizationSuccess, AuthorizationCode
 
 
 ## Authenticate
@@ -80,23 +83,29 @@ request.
 
 ### Authorize
 
+@docs makeAuthorizationUrlWith
+
 
 ### Authenticate
+
+@docs makeTokenRequestWith
 
 
 ### Json Decoders
 
+@docs defaultExpiresInDecoder, defaultScopeDecoder, lenientScopeDecoder, defaultTokenDecoder, defaultRefreshTokenDecoder, defaultErrorDecoder, defaultErrorDescriptionDecoder, defaultErrorUriDecoder
+
 
 ### Query Parsers
 
-@docs Parsers
+@docs parseCodeWith, Parsers, defaultParsers, defaultCodeParser, defaultErrorParser, defaultAuthorizationSuccessParser, defaultAuthorizationErrorParser
 
 -}
 
 import Dict exposing (Dict)
 import Http
 import Json.Decode as Json
-import OAuth exposing (ErrorCode, GrantType(..), Token, errorCodeFromString, grantTypeToString)
+import OAuth exposing (ErrorCode, GrantType(..), ResponseType(..), Token, errorCodeFromString, grantTypeToString)
 import OAuth.Internal as Internal exposing (..)
 import Url exposing (Url)
 import Url.Builder as Builder
@@ -108,6 +117,38 @@ import Url.Parser.Query as Query
 --
 -- Authorize
 --
+
+
+{-| Request configuration for an authorization (Authorization Code & Implicit flows)
+
+  - `clientId` (_REQUIRED_):
+    The client identifier issues by the authorization server via an off-band mechanism.
+
+  - `url` (_REQUIRED_):
+    The authorization endpoint to contact the authorization server.
+
+  - `redirectUri` (_OPTIONAL_):
+    After completing its interaction with the resource owner, the authorization
+    server directs the resource owner's user-agent back to the client via this
+    URL. May be already defined on the authorization server itself.
+
+  - `scope` (_OPTIONAL_):
+    The scope of the access request.
+
+  - `state` (_RECOMMENDED_):
+    An opaque value used by the client to maintain state between the request
+    and callback. The authorization server includes this value when redirecting
+    the user-agent back to the client. The parameter SHOULD be used for preventing
+    cross-site request forgery.
+
+-}
+type alias Authorization =
+    { clientId : String
+    , url : Url
+    , redirectUri : Url
+    , scope : List String
+    , state : Maybe String
+    }
 
 
 {-| Describes an OAuth error as a result of an authorization request failure
@@ -181,6 +222,14 @@ type AuthorizationResultWith error success
     = Empty
     | Error error
     | Success success
+
+
+{-| Redirects the resource owner (user) to the resource provider server using the specified
+authorization flow.
+-}
+makeAuthorizationUrl : Authorization -> Url
+makeAuthorizationUrl =
+    makeAuthorizationUrlWith Code Dict.empty
 
 
 {-| Parse the location looking for a parameters set by the resource provider server after
@@ -324,6 +373,35 @@ makeTokenRequest =
 --
 
 
+{-| Like [`makeAuthorizationUrl`](#makeAuthorizationUrl), but gives you the ability to specify a
+custom response type and extra fields to be set on the query.
+
+    makeAuthorizationUrl : Authorization -> Url
+    makeAuthorizationUrl =
+        makeAuthorizationUrlWith Code Dict.empty
+
+For example, to interact with a service implementing `OpenID+Connect` you may require a different
+token type and an extra query parameter as such:
+
+    makeAuthorizationUrlWith
+        (CustomResponse "code+id_token")
+        (Dict.fromList [ ( "resource", "001" ) ])
+        authorization
+
+-}
+makeAuthorizationUrlWith : ResponseType -> Dict String String -> Authorization -> Url
+makeAuthorizationUrlWith responseType extraFields { clientId, url, redirectUri, scope, state } =
+    Internal.makeAuthorizationUrl
+        responseType
+        extraFields
+        { clientId = clientId
+        , url = url
+        , redirectUri = redirectUri
+        , scope = scope
+        , state = state
+        }
+
+
 {-| Like [`makeTokenRequest`](#makeTokenRequest), but gives you the ability to specify custom grant
 type and extra fields to be set on the query.
 
@@ -341,7 +419,7 @@ makeTokenRequestWith grantType decoder extraFields toMsg { credentials, code, ur
         body =
             [ Builder.string "grant_type" (grantTypeToString grantType)
             , Builder.string "client_id" credentials.clientId
-            , Builder.string "client_id_secret" (credentials.secret |> Maybe.withDefault "")
+            , Builder.string "client_secret" (credentials.secret |> Maybe.withDefault "")
             , Builder.string "redirect_uri" (makeRedirectUri redirectUri)
             , Builder.string "code" code
             ]
@@ -478,8 +556,57 @@ defaultAuthenticationErrorDecoder =
     Internal.authenticationErrorDecoder defaultErrorDecoder
 
 
+{-| Json decoder for the `expiresIn` field.
+-}
+defaultExpiresInDecoder : Json.Decoder (Maybe Int)
+defaultExpiresInDecoder =
+    Internal.expiresInDecoder
+
+
+{-| Json decoder for the `scope` field (space-separated).
+-}
+defaultScopeDecoder : Json.Decoder (List String)
+defaultScopeDecoder =
+    Internal.scopeDecoder
+
+
+{-| Json decoder for the `scope` field (comma- or space-separated).
+-}
+lenientScopeDecoder : Json.Decoder (List String)
+lenientScopeDecoder =
+    Internal.lenientScopeDecoder
+
+
+{-| Json decoder for the `access_token` field.
+-}
+defaultTokenDecoder : Json.Decoder Token
+defaultTokenDecoder =
+    Internal.tokenDecoder
+
+
+{-| Json decoder for the `refresh_token` field.
+-}
+defaultRefreshTokenDecoder : Json.Decoder (Maybe Token)
+defaultRefreshTokenDecoder =
+    Internal.refreshTokenDecoder
+
+
 {-| Json decoder for the `error` field.
 -}
 defaultErrorDecoder : Json.Decoder ErrorCode
 defaultErrorDecoder =
     Internal.errorDecoder errorCodeFromString
+
+
+{-| Json decoder for the `error_description` field.
+-}
+defaultErrorDescriptionDecoder : Json.Decoder (Maybe String)
+defaultErrorDescriptionDecoder =
+    Internal.errorDescriptionDecoder
+
+
+{-| Json decoder for the `error_uri` field.
+-}
+defaultErrorUriDecoder : Json.Decoder (Maybe String)
+defaultErrorUriDecoder =
+    Internal.errorUriDecoder

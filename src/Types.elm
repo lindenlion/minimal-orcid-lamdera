@@ -30,21 +30,36 @@ type FrontendMsg
     | UrlChanged Url
     | Linden Int
     | Lion Int
+    | OrcidSigninRequested
+    | OrcidSignoutRequested1
+    | BackendSignoutRequested
 
 
 type ToBackend
-    = AuthToBackend Auth.Common.ToBackend
+    = NoOpToBackend
+    | AuthToBackend Auth.Common.ToBackend
+    | GetUser
+    | Signout
+    | OrcidSignoutRequested2
 
 
 type BackendMsg
-    = AuthBackendMsg Auth.Common.BackendMsg
+    = NoOpBackendMsg
+    | AuthBackendMsg Auth.Common.BackendMsg
 
 
 type ToFrontend
-    = AuthToFrontend Auth.Common.ToFrontend
+    = NoOpToFrontend
+    | AuthToFrontend Auth.Common.ToFrontend
     | AuthSuccess UserInfo
+    | UserInfoMsg (Maybe UserInfo)
+    | BackendLoggedOut
+    | OrcidSignoutRequested3
 
 
 type LoginState
-    = NotLogged
+    = Loading
+    | NotLogged
+    | LoginTokenSent
     | LoggedIn UserInfo
+    | SignedOut

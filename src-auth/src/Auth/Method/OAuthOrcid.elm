@@ -25,7 +25,7 @@ configuration :
 configuration clientId clientSecret =
     ProtocolOAuth
         { id = "OAuthOrcid"
-        , authorizationEndpoint = { defaultHttpsUrl | host = "sandbox.orcid.org", path = "/oauth/authorize" }
+        , authorizationEndpoint = { defaultHttpsUrl | host = "sandbox.orcid.org", path = "/oauth/authorize", query = Just "prompt=login" }
         , tokenEndpoint = { defaultHttpsUrl | host = "sandbox.orcid.org", path = "/oauth/token" }
         , logoutEndpoint = Home { returnPath = "/signout" }
         , allowLoginQueryParameters = True
@@ -96,19 +96,41 @@ getUserInfo authenticationSuccess =
                             )
                             (extractOptional Nothing "name" (Json.string |> Json.nullable) meta)
                             (extractOptional Nothing "family_name" (Json.string |> Json.nullable) meta)
-                            (extract "given_name" Json.string meta)
+                            (extractOptional Nothing "given_name" (Json.string |> Json.nullable) meta)
                             (extract "sub" Json.string meta)
                     )
 
         debug =
             Debug.log "tokenR: " tokenR
+
+        nothingInsteadOfJustEmptyString a =
+            if String.length a > 0 then
+                Just a
+
+            else
+                Nothing
+
+        orElse ma mb =
+            case mb of
+                Nothing ->
+                    ma
+
+                Just _ ->
+                    mb
     in
     Task.mapError (Auth.Common.ErrAuthString << HttpHelpers.httpErrorToString) <|
         case stuff of
             Ok result ->
                 Task.succeed
                     { email = Nothing
-                    , name = Just <| Maybe.withDefault result.given_name result.name -- append family_name to given_name if available
+                    , name =
+                        result.name
+                            |> orElse
+                                ([ result.given_name, result.family_name ]
+                                    |> List.filterMap identity
+                                    |> String.join " "
+                                    |> nothingInsteadOfJustEmptyString
+                                )
                     , username = Just result.sub
                     , unique = result.sub
                     }

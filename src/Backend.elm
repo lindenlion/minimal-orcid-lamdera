@@ -58,12 +58,6 @@ updateFromFrontend sessionId clientId msg model =
         GetUser ->
             ( model, Lamdera.sendToFrontend sessionId <| UserInfoMsg (findUser sessionId model) )
 
-        Signout ->
-            ( { model | sessions = removeSession sessionId model.sessions }, Lamdera.sendToFrontend sessionId BackendLoggedOut )
-
-        OrcidSignoutRequested2 ->
-            ( model, Lamdera.sendToFrontend sessionId OrcidSignoutRequested3 )
-
 
 removeSession : SessionId -> Dict SessionId UserInfo -> Dict SessionId UserInfo
 removeSession sessionId sessions =

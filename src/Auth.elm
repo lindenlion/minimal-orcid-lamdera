@@ -11,10 +11,8 @@ import Time
 import Types exposing (..)
 
 
-oauthConfig =
-    { orcidAppClientId = Env.orcidAppClientId
-    , orcidAppClientSecret = Env.orcidAppClientSecret
-    }
+oAuthConfig =
+    Auth.Method.OAuthOrcid.configuration Env.orcidAppClientId Env.orcidAppClientSecret Env.useOrcidSandbox
 
 
 config : Auth.Common.Config FrontendMsg ToBackend BackendMsg ToFrontend FrontendModel BackendModel
@@ -26,7 +24,7 @@ config =
     , sendToBackend = Lamdera.sendToBackend
     , renewSession = renewSession
     , methods =
-        [ Auth.Method.OAuthOrcid.configuration oauthConfig.orcidAppClientId oauthConfig.orcidAppClientSecret
+        [ oAuthConfig
         ]
     }
 
@@ -45,9 +43,17 @@ backendConfig model =
     }
 
 
+
+-- TODO: Implement the possibility to logout current user from all devices.
+
+
 logout : SessionId -> ClientId -> BackendModel -> ( BackendModel, Cmd msg )
 logout sessionId _ model =
-    ( { model | sessions = model.sessions |> Dict.remove sessionId }, Cmd.none )
+    ( { model | sessions = Dict.remove sessionId model.sessions }, Lamdera.sendToFrontend sessionId BackendLoggedOut )
+
+
+
+--  ( { model | sessions = removeSession sessionId model.sessions }, Lamdera.sendToFrontend sessionId BackendLoggedOut )
 
 
 updateFromBackend authToFrontendMsg model =
@@ -79,6 +85,7 @@ handleAuthSuccess :
 handleAuthSuccess backendModel sessionId clientId userInfo _ _ _ =
     -- TODO handle renewing sessions if that is something you need
     let
+        -- TODO: this should use the sessionId instead, otherwise user can only be signed in on one device at a time.
         sessionsWithOutThisOne : Dict SessionId UserInfo
         sessionsWithOutThisOne =
             Dict.removeWhen (\_ { unique } -> unique == userInfo.unique) backendModel.sessions

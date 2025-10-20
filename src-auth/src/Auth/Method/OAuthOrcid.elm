@@ -16,17 +16,26 @@ import Url exposing (Url)
 configuration :
     String
     -> String
+    -> Bool
     ->
         Method
             frontendMsg
             backendMsg
             { frontendModel | authFlow : Flow, authRedirectBaseUrl : Url }
             backendModel
-configuration clientId clientSecret =
+configuration clientId clientSecret sandbox =
+    let
+        host =
+            if sandbox then
+                "sandbox.orcid.org"
+
+            else
+                "orcid.org"
+    in
     ProtocolOAuth
         { id = "OAuthOrcid"
-        , authorizationEndpoint = { defaultHttpsUrl | host = "sandbox.orcid.org", path = "/oauth/authorize", query = Just "prompt=login" }
-        , tokenEndpoint = { defaultHttpsUrl | host = "sandbox.orcid.org", path = "/oauth/token" }
+        , authorizationEndpoint = { defaultHttpsUrl | host = host, path = "/oauth/authorize", query = Nothing }
+        , tokenEndpoint = { defaultHttpsUrl | host = host, path = "/oauth/token" }
         , logoutEndpoint = Home { returnPath = "/signout" }
         , allowLoginQueryParameters = True
         , clientId = clientId

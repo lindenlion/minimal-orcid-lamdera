@@ -205,30 +205,12 @@ signInRequested methodId model username =
 
 
 signOutRequested :
-    Maybe LogoutEndpointConfig
-    -> List QueryParameter
-    -> { a | authFlow : Auth.Common.Flow, authLogoutReturnUrlBase : Url }
-    -> ( { a | authFlow : Auth.Common.Flow, authLogoutReturnUrlBase : Url }, Cmd msg )
-signOutRequested maybeUrlConfig callBackQueries model =
-    ( { model | authFlow = Auth.Common.Idle }
-    , case maybeUrlConfig of
-        Just (Tenant urlConfig) ->
-            Navigation.load <|
-                Url.toString urlConfig.url
-                    ++ Url.toString model.authLogoutReturnUrlBase
-                    ++ urlConfig.returnPath
-                    ++ Url.Builder.toQuery callBackQueries
-
-        Just (Home homeUrlConfig) ->
-            Navigation.load <|
-                Url.toString model.authLogoutReturnUrlBase
-                    ++ homeUrlConfig.returnPath
-                    ++ Url.Builder.toQuery callBackQueries
-
-        Nothing ->
-            Navigation.load <|
-                Url.toString model.authLogoutReturnUrlBase
-                    ++ Url.Builder.toQuery callBackQueries
+    Auth.Common.MethodId
+    -> { frontendModel | authFlow : Auth.Common.Flow, authRedirectBaseUrl : Url }
+    -> ( { frontendModel | authFlow : Auth.Common.Flow, authRedirectBaseUrl : Url }, Auth.Common.ToBackend )
+signOutRequested methodId model =
+    ( { model | authFlow = Auth.Common.Requested methodId }
+    , Auth.Common.AuthLogoutRequested
     )
 
 

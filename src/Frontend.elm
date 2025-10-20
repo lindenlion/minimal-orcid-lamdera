@@ -44,14 +44,21 @@ init url key =
             }
     in
     route model url key
-        |> Tuple.mapSecond (\cmd -> Cmd.batch [ cmd, Random.generate Linden (Random.int 0 31), Random.generate Lion (Random.int 0 31) ])
+        |> Tuple.mapSecond
+            (\cmd ->
+                Cmd.batch
+                    [ cmd
+                    , Random.generate Linden (Random.int 0 31)
+                    , Random.generate Lion (Random.int 0 31)
+                    ]
+            )
 
 
 route : Model -> Lamdera.Url -> Nav.Key -> ( Model, Cmd FrontendMsg )
 route model url key =
     let
-        { path } =
-            url
+        path =
+            url.path
     in
     case path of
         "/login/OAuthOrcid/callback" ->
@@ -94,13 +101,12 @@ update msg model =
             Auth.Flow.signInRequested "OAuthOrcid" model Nothing
                 |> Tuple.mapSecond (AuthToBackend >> Lamdera.sendToBackend)
 
-        OrcidSignoutRequested1 ->
-            ( { model | login = NotLogged }, Lamdera.sendToBackend OrcidSignoutRequested2 )
+        OrcidSignoutRequested ->
+            ( { model | login = NotLogged }, Cmd.none )
 
         BackendSignoutRequested ->
-            ( { model | login = SignedOut }
-            , Lamdera.sendToBackend Signout
-            )
+            Auth.Flow.signOutRequested "OAuthOrcid" { model | login = SignedOut }
+                |> Tuple.mapSecond (AuthToBackend >> Lamdera.sendToBackend)
 
 
 updateFromBackend : ToFrontend -> Model -> ( Model, Cmd FrontendMsg )
@@ -124,10 +130,12 @@ updateFromBackend msg model =
                     ( { model | login = NotLogged }, Cmd.none )
 
         BackendLoggedOut ->
-            ( { model | login = SignedOut }, Cmd.none )
+            case model.login of
+                SignedOut ->
+                    ( model, Cmd.none )
 
-        OrcidSignoutRequested3 ->
-            ( { model | login = NotLogged }, Cmd.none )
+                _ ->
+                    ( { model | login = NotLogged }, Cmd.none )
 
 
 view : Model -> Browser.Document FrontendMsg
@@ -163,7 +171,6 @@ viewBody model =
         , A.style "padding" "20px calc(50vw - 120px) 0 calc(50vw - 120px)"
         , A.style "width" "240px"
         , A.style "display" "block"
-        , A.style "background-color" "#999"
         , A.style "height" "100vh"
         ]
     <|
@@ -200,6 +207,13 @@ viewUser model =
     let
         break =
             H.p [ A.style "clear" "both", A.style "text-align" "center", A.style "padding" "20px" ]
+
+        orcidHost =
+            if Env.useOrcidSandbox then
+                "sandbox.orcid.org"
+
+            else
+                "orcid.org"
     in
     case model.login of
         Loading ->
@@ -209,7 +223,8 @@ viewUser model =
             [ break [ H.text "Hello, world" ]
             , H.div []
                 [ H.label []
-                    [ H.button [ E.onClick OrcidSigninRequested ] [ H.text "Login with Orcid" ] ]
+                    [ H.button [ E.onClick OrcidSigninRequested ] [ H.text "Login with Orcid" ]
+                    ]
                 ]
             ]
 
@@ -229,7 +244,7 @@ viewUser model =
             , H.div []
                 [ H.label []
                     [ H.button [ E.onClick OrcidSigninRequested ] [ H.text "Login with Orcid" ]
-                    , H.button [ E.onClick OrcidSignoutRequested1 ] [ H.a [ A.href "https://sandbox.orcid.org/signout", A.target "_blank" ] [ H.text "Sign out on Orcid" ] ]
+                    , H.button [ E.onClick OrcidSignoutRequested ] [ H.a [ A.href ("https://" ++ orcidHost ++ "/signout"), A.target "_blank" ] [ H.text "Sign out on Orcid" ] ]
                     ]
                 ]
             ]

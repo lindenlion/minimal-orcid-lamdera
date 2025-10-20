@@ -31,7 +31,7 @@ type FrontendMsg
     | Linden Int
     | Lion Int
     | OrcidSigninRequested
-    | OrcidSignoutRequested1
+    | OrcidSignoutRequested
     | BackendSignoutRequested
 
 
@@ -39,8 +39,6 @@ type ToBackend
     = NoOpToBackend
     | AuthToBackend Auth.Common.ToBackend
     | GetUser
-    | Signout
-    | OrcidSignoutRequested2
 
 
 type BackendMsg
@@ -54,7 +52,6 @@ type ToFrontend
     | AuthSuccess UserInfo
     | UserInfoMsg (Maybe UserInfo)
     | BackendLoggedOut
-    | OrcidSignoutRequested3
 
 
 type LoginState

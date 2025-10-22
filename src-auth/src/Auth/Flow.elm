@@ -151,7 +151,7 @@ backendUpdate { asToFrontend, asBackendMsg, sendToFrontend, backendModel, loadMe
                             config.initiateSignin sessionId clientId backendModel { username = username } now
 
                         Auth.Common.ProtocolOAuth config ->
-                            Auth.Protocol.OAuth.initiateSignin isDev sessionId clientId baseUrl config asBackendMsg now backendModel
+                            Auth.Protocol.OAuth.initiateSignin isDev sessionId clientId baseUrl config asBackendMsg now backendModel username
                 )
 
         Auth.Common.AuthSigninInitiatedDelayed_ sessionId initiateMsg ->
@@ -172,11 +172,11 @@ backendUpdate { asToFrontend, asBackendMsg, sendToFrontend, backendModel, loadMe
         Auth.Common.AuthSuccess sessionId clientId methodId now res ->
             let
                 removeSession backendModel_ =
-                    { backendModel_ | pendingAuths = backendModel_.pendingAuths |> Dict.remove sessionId }
+                    { backendModel_ | pendingAuths = Dict.remove sessionId backendModel_.pendingAuths }
             in
             withMethod methodId
                 clientId
-                (\method ->
+                (\_ ->
                     case res of
                         Ok ( userInfo, authToken ) ->
                             handleAuthSuccess sessionId clientId userInfo methodId authToken now

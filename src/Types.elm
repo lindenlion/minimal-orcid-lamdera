@@ -21,7 +21,7 @@ type alias FrontendModel =
 type alias BackendModel =
     { message : String
     , pendingAuths : Dict Lamdera.SessionId Auth.Common.PendingAuth
-    , sessions : Dict SessionId UserInfo
+    , sessions : Dict SessionId ( Bool, UserInfo )
     }
 
 
@@ -30,7 +30,9 @@ type FrontendMsg
     | UrlChanged Url
     | Linden Int
     | Lion Int
-    | OrcidSigninRequested
+    | OrcidLoginRequested
+    | ConfirmLoginAs UserInfo
+    | OrcidPromptLoginRequested
     | OrcidSignoutRequested
     | BackendSignoutRequested
 
@@ -38,6 +40,7 @@ type FrontendMsg
 type ToBackend
     = NoOpToBackend
     | AuthToBackend Auth.Common.ToBackend
+    | ConfirmLoginOnBackend UserInfo
     | GetUser
 
 
@@ -50,13 +53,18 @@ type ToFrontend
     = NoOpToFrontend
     | AuthToFrontend Auth.Common.ToFrontend
     | AuthSuccess UserInfo
-    | UserInfoMsg (Maybe UserInfo)
+    | UserInfoMsg (Maybe ( Bool, UserInfo ))
     | BackendLoggedOut
 
 
 type LoginState
     = Loading
-    | NotLogged
+    | Anonymous
     | LoginTokenSent
+    | LoginProposal UserInfo
     | LoggedIn UserInfo
     | SignedOut
+
+
+
+-- TODO: LoginProposal UserInfo (only when no password was entered on orcid.org)

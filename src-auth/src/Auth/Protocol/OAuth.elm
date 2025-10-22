@@ -69,7 +69,7 @@ accessTokenRequested model methodId code state =
     )
 
 
-initiateSignin isDev sessionId clientId baseUrl config asBackendMsg now backendModel =
+initiateSignin isDev sessionId clientId baseUrl config asBackendMsg now backendModel username =
     let
         signedState =
             SHA1.toBase64 <|
@@ -87,7 +87,7 @@ initiateSignin isDev sessionId clientId baseUrl config asBackendMsg now backendM
             }
 
         url =
-            generateSigninUrl baseUrl signedState config
+            generateSigninUrl baseUrl signedState config username
     in
     ( { backendModel
         | pendingAuths = backendModel.pendingAuths |> Dict.insert sessionId newPendingAuth
@@ -103,8 +103,8 @@ initiateSignin isDev sessionId clientId baseUrl config asBackendMsg now backendM
     )
 
 
-generateSigninUrl : Url -> Auth.Common.State -> Auth.Common.ConfigurationOAuth frontendMsg backendMsg frontendModel backendModel -> Url
-generateSigninUrl baseUrl state configuration =
+generateSigninUrl : Url -> Auth.Common.State -> Auth.Common.ConfigurationOAuth frontendMsg backendMsg frontendModel backendModel -> Maybe String -> Url
+generateSigninUrl baseUrl state configuration username =
     let
         queryAdjustedUrl =
             -- google auth is an example where, at time of writing, query parameters are not allowed in a login redirect url
@@ -121,9 +121,23 @@ generateSigninUrl baseUrl state configuration =
             , state = Just state
             , url = configuration.authorizationEndpoint
             }
+
+        extraFields : Dict String String
+        extraFields =
+            [ username ]
+                |> List.filterMap identity
+                |> List.map
+                    (\u ->
+                        if u == "login" then
+                            ( "prompt", u )
+
+                        else
+                            ( "username", u )
+                    )
+                |> Dict.fromList
     in
     authorization
-        |> OAuth.makeAuthorizationUrl
+        |> OAuth.makeAuthorizationUrlWith OAuth.Code extraFields
 
 
 onAuthCallbackReceived sessionId clientId method receivedUrl code state now asBackendMsg backendModel =

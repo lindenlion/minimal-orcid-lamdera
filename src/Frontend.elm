@@ -97,12 +97,19 @@ update msg model =
         Lion i ->
             ( { model | lion = i }, Cmd.none )
 
-        OrcidSigninRequested ->
+        OrcidLoginRequested ->
             Auth.Flow.signInRequested "OAuthOrcid" model Nothing
                 |> Tuple.mapSecond (AuthToBackend >> Lamdera.sendToBackend)
 
+        ConfirmLoginAs user ->
+            ( { model | login = LoggedIn user }, Lamdera.sendToBackend <| ConfirmLoginOnBackend user )
+
+        OrcidPromptLoginRequested ->
+            Auth.Flow.signInRequested "OAuthOrcid" model (Just "login")
+                |> Tuple.mapSecond (AuthToBackend >> Lamdera.sendToBackend)
+
         OrcidSignoutRequested ->
-            ( { model | login = NotLogged }, Cmd.none )
+            ( { model | login = Anonymous }, Cmd.none )
 
         BackendSignoutRequested ->
             Auth.Flow.signOutRequested "OAuthOrcid" { model | login = SignedOut }
@@ -119,15 +126,18 @@ updateFromBackend msg model =
             Auth.updateFromBackend authMsg model
 
         AuthSuccess userInfo ->
-            ( { model | login = LoggedIn userInfo }, Nav.pushUrl model.key "/" )
+            ( { model | login = LoginProposal userInfo }, Nav.pushUrl model.key "/success" )
 
         UserInfoMsg maybeUserinfo ->
             case maybeUserinfo of
-                Just userInfo ->
+                Just ( True, userInfo ) ->
                     ( { model | login = LoggedIn userInfo }, Cmd.none )
 
+                Just ( False, userInfo ) ->
+                    ( { model | login = LoginProposal userInfo }, Cmd.none )
+
                 Nothing ->
-                    ( { model | login = NotLogged }, Cmd.none )
+                    ( { model | login = Anonymous }, Cmd.none )
 
         BackendLoggedOut ->
             case model.login of
@@ -135,7 +145,7 @@ updateFromBackend msg model =
                     ( model, Cmd.none )
 
                 _ ->
-                    ( { model | login = NotLogged }, Cmd.none )
+                    ( { model | login = Anonymous }, Cmd.none )
 
 
 view : Model -> Browser.Document FrontendMsg
@@ -151,14 +161,17 @@ viewTitle login =
         Loading ->
             "Loading"
 
-        NotLogged ->
+        Anonymous ->
             "Hello, world"
 
         LoginTokenSent ->
             "Token sent"
 
-        LoggedIn { name } ->
-            "Hello, " ++ Maybe.withDefault "NoName" name
+        LoginProposal userinfo ->
+            "Are you " ++ Maybe.withDefault "NoName" userinfo.name ++ "?"
+
+        LoggedIn userinfo ->
+            "Hello, " ++ Maybe.withDefault "NoName" userinfo.name
 
         SignedOut ->
             "Bye bye"
@@ -219,17 +232,29 @@ viewUser model =
         Loading ->
             [ break [ H.text "Loading..." ] ]
 
-        NotLogged ->
+        Anonymous ->
             [ break [ H.text "Hello, world" ]
             , H.div []
                 [ H.label []
-                    [ H.button [ E.onClick OrcidSigninRequested ] [ H.text "Login with Orcid" ]
+                    [ H.button [ E.onClick OrcidLoginRequested ] [ H.text "Login with Orcid" ]
                     ]
                 ]
             ]
 
         LoginTokenSent ->
             [ break [ H.text "Login request sent... waiting for response from server." ] ]
+
+        LoginProposal user ->
+            let
+                name =
+                    Maybe.withDefault "NoName" user.name
+            in
+            [ break [ H.text "Hello, ", H.a [ A.href <| "#" ++ user.unique ] [ H.text name ] ]
+            , H.p [ A.style "text-align" "center", A.style "padding" "20px" ]
+                [ H.button [ E.onClick <| ConfirmLoginAs user ] [ H.text <| "Confirm login as " ++ name ]
+                , H.button [ E.onClick OrcidPromptLoginRequested ] [ H.text "Not you? Sign in as different user." ]
+                ]
+            ]
 
         LoggedIn user ->
             [ break [ H.text "Hello, ", H.a [ A.href <| "#" ++ user.unique ] [ H.text <| Maybe.withDefault "NoName" user.name ] ]
@@ -243,7 +268,7 @@ viewUser model =
             [ break [ H.text "Bye bye! Your session on this site has ended, but you may still be signed in on orcid.org!" ]
             , H.div []
                 [ H.label []
-                    [ H.button [ E.onClick OrcidSigninRequested ] [ H.text "Login with Orcid" ]
+                    [ H.button [ E.onClick OrcidLoginRequested ] [ H.text "Login with Orcid" ]
                     , H.button [ E.onClick OrcidSignoutRequested ] [ H.a [ A.href ("https://" ++ orcidHost ++ "/signout"), A.target "_blank" ] [ H.text "Sign out on Orcid" ] ]
                     ]
                 ]

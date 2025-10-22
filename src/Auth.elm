@@ -11,22 +11,8 @@ import Time
 import Types exposing (..)
 
 
-oAuthConfig =
+orcidConfig =
     Auth.Method.OAuthOrcid.configuration Env.orcidAppClientId Env.orcidAppClientSecret Env.useOrcidSandbox
-
-
-config : Auth.Common.Config FrontendMsg ToBackend BackendMsg ToFrontend FrontendModel BackendModel
-config =
-    { toBackend = AuthToBackend
-    , toFrontend = AuthToFrontend
-    , backendMsg = AuthBackendMsg
-    , sendToFrontend = Lamdera.sendToFrontend
-    , sendToBackend = Lamdera.sendToBackend
-    , renewSession = renewSession
-    , methods =
-        [ oAuthConfig
-        ]
-    }
 
 
 backendConfig : BackendModel -> Auth.Flow.BackendUpdateConfig FrontendMsg BackendMsg ToFrontend FrontendModel BackendModel
@@ -35,7 +21,7 @@ backendConfig model =
     , asBackendMsg = AuthBackendMsg
     , sendToFrontend = Lamdera.sendToFrontend
     , backendModel = model
-    , loadMethod = Auth.Flow.methodLoader config.methods
+    , loadMethod = Auth.Flow.methodLoader [ orcidConfig ]
     , handleAuthSuccess = handleAuthSuccess model
     , isDev = True
     , renewSession = renewSession
@@ -52,10 +38,6 @@ logout sessionId _ model =
     ( { model | sessions = Dict.remove sessionId model.sessions }, Lamdera.sendToFrontend sessionId BackendLoggedOut )
 
 
-
---  ( { model | sessions = removeSession sessionId model.sessions }, Lamdera.sendToFrontend sessionId BackendLoggedOut )
-
-
 updateFromBackend authToFrontendMsg model =
     case authToFrontendMsg of
         Auth.Common.AuthInitiateSignin url ->
@@ -70,7 +52,7 @@ updateFromBackend authToFrontendMsg model =
 
 renewSession : Lamdera.SessionId -> Lamdera.ClientId -> BackendModel -> ( BackendModel, Cmd BackendMsg )
 renewSession _ _ model =
-    ( model, Cmd.none )
+    Debug.todo "renewSession is not implemented yet"
 
 
 handleAuthSuccess :
@@ -83,19 +65,13 @@ handleAuthSuccess :
     -> Time.Posix
     -> ( BackendModel, Cmd BackendMsg )
 handleAuthSuccess backendModel sessionId clientId userInfo _ _ _ =
-    -- TODO handle renewing sessions if that is something you need
     let
-        -- TODO: this should use the sessionId instead, otherwise user can only be signed in on one device at a time.
-        sessionsWithOutThisOne : Dict SessionId UserInfo
-        sessionsWithOutThisOne =
-            Dict.removeWhen (\_ { unique } -> unique == userInfo.unique) backendModel.sessions
-
         newSessions =
-            Dict.insert sessionId userInfo sessionsWithOutThisOne
+            Dict.insert sessionId ( False, userInfo ) backendModel.sessions
 
         response =
             AuthSuccess userInfo
     in
     ( { backendModel | sessions = newSessions }
-    , Lamdera.sendToFrontend sessionId response
+    , Lamdera.sendToFrontend clientId response
     )

@@ -247,10 +247,10 @@ errorToString error =
             "ErrStateMismatch"
 
         Auth.Common.ErrAuthorization authorizationError ->
-            "ErrAuthorization"
+            "ErrAuthorization" ++ OAuth.errorCodeToString authorizationError.error
 
         Auth.Common.ErrAuthentication authenticationError ->
-            "ErrAuthentication"
+            "ErrAuthentication: " ++ OAuth.errorCodeToString authenticationError.error
 
         Auth.Common.ErrHTTPGetAccessToken ->
             "ErrHTTPGetAccessToken"

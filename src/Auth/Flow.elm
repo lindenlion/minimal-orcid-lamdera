@@ -44,7 +44,7 @@ onFrontendLogoutCallback navigationMsg =
 updateFromFrontend { asBackendMsg } clientId sessionId authToBackend model =
     case authToBackend of
         Auth.Common.AuthSigninInitiated params ->
-            ( model
+            ( { model | sessions = Dict.remove sessionId model.sessions }
             , withCurrentTime
                 (\now ->
                     asBackendMsg <|

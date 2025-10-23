@@ -70,7 +70,7 @@ type alias ConfigurationOAuth frontendMsg backendMsg frontendModel backendModel 
     , clientId : String
     , clientSecret : String
     , scope : List String
-    , getUserInfo : OAuth.AuthenticationSuccess -> Task Error UserInfo
+    , getUserInfo : OAuth.AuthenticationSuccess -> Time.Posix -> Task Error UserInfo
     , onFrontendCallbackInit :
         frontendModel
         -> MethodId

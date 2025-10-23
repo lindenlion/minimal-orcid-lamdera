@@ -200,7 +200,8 @@ signInRequested :
     -> ( { frontendModel | authFlow : Auth.Common.Flow, authRedirectBaseUrl : Url }, Auth.Common.ToBackend )
 signInRequested methodId model username =
     ( { model | authFlow = Auth.Common.Requested methodId }
-    , Auth.Common.AuthSigninInitiated { methodId = methodId, baseUrl = model.authRedirectBaseUrl, username = username }
+    , Auth.Common.AuthSigninInitiated
+        { methodId = methodId, baseUrl = model.authRedirectBaseUrl, username = username }
     )
 
 

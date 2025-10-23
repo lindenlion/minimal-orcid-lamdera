@@ -154,6 +154,7 @@ onAuthCallbackReceived sessionId clientId method receivedUrl code state now asBa
                         if pendingAuth.state == state then
                             method.getUserInfo
                                 authenticationResponse
+                                now
                                 |> Task.map (\userInfo -> ( userInfo, authToken ))
 
                         else

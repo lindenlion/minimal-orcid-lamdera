@@ -4,12 +4,13 @@ import Auth.Common exposing (..)
 import Auth.HttpHelpers as HttpHelpers
 import Auth.Protocol.OAuth
 import Dict exposing (Dict)
+import Env
 import Http
 import JWT exposing (..)
-import JWT.JWS as JWS
 import Json.Decode as Json
 import OAuth.AuthorizationCode as OAuth
 import Task exposing (Task)
+import Time exposing (Posix)
 import Url exposing (Url)
 
 
@@ -41,18 +42,18 @@ configuration clientId clientSecret sandbox =
         , clientId = clientId
         , clientSecret = clientSecret
         , scope = [ "openid" ]
-        , getUserInfo = getUserInfo
+        , getUserInfo = getUserInfo host
         , onFrontendCallbackInit = Auth.Protocol.OAuth.onFrontendCallbackInit
         , placeholder = \_ -> ()
-
-        -- , onAuthCallbackReceived = Debug.todo "onAuthCallbackReceived"
         }
 
 
 getUserInfo :
-    OAuth.AuthenticationSuccess
+    String
+    -> OAuth.AuthenticationSuccess
+    -> Time.Posix
     -> Task Auth.Common.Error UserInfo
-getUserInfo authenticationSuccess =
+getUserInfo issuer authenticationSuccess now =
     let
         extract : String -> Json.Decoder a -> Dict String Json.Value -> Result String a
         extract k d v =
@@ -80,14 +81,34 @@ getUserInfo authenticationSuccess =
                     Err "Identity JWT missing in authentication response. Please report this issue."
 
                 Just idJwt ->
-                    case JWT.fromString idJwt of
+                    case
+                        JWT.fromString idJwt
+                    of
                         Ok (JWS t) ->
                             Ok t
 
                         Err err ->
                             Err <| jwtErrorToString err
 
-        stuff =
+        signature =
+            tokenR
+                |> Result.andThen
+                    (\token ->
+                        JWT.isValid
+                            { issuer = Just <| "https://" ++ issuer
+                            , audience = Just Env.orcidAppClientId
+                            , subject = Nothing
+                            , jwtID = Nothing
+                            , leeway = 1000
+                            }
+                            "RSA keys are not supported yet, so it is currently not possible to verify the JWT signature."
+                            now
+                            (JWS token)
+                            -- TODO: get better JWT signature error to String conversion
+                            |> Result.mapError (\_ -> "JWT Signature Error")
+                    )
+
+        claims =
             tokenR
                 |> Result.andThen
                     (\token ->
@@ -110,7 +131,7 @@ getUserInfo authenticationSuccess =
                     )
 
         debug =
-            Debug.log "tokenR: " tokenR
+            Debug.log "claims: " claims
 
         nothingInsteadOfJustEmptyString a =
             if String.length a > 0 then
@@ -128,7 +149,7 @@ getUserInfo authenticationSuccess =
                     mb
     in
     Task.mapError (Auth.Common.ErrAuthString << HttpHelpers.httpErrorToString) <|
-        case stuff of
+        case claims of
             Ok result ->
                 Task.succeed
                     { email = Nothing
@@ -149,20 +170,10 @@ getUserInfo authenticationSuccess =
 
 
 jwtErrorToString err =
+    -- TODO: find better way to get more detailed error messages than vendoring JWT package.
     case err of
         TokenTypeUnknown ->
-            "Unsupported auth token type."
+            "Is that really a JWT token? I don't recognize this format. I expected something like bli.bla.blu with 2 dots separating three parts of a base64 encoded string."
 
-        JWSError decodeError ->
-            case decodeError of
-                JWS.Base64DecodeError ->
-                    "Base64DecodeError"
-
-                JWS.MalformedSignature ->
-                    "MalformedSignature"
-
-                JWS.InvalidHeader jsonError ->
-                    "InvalidHeader: " ++ Json.errorToString jsonError
-
-                JWS.InvalidClaims jsonError ->
-                    "InvalidClaims: " ++ Json.errorToString jsonError
+        _ ->
+            "JWT token decoding trouble: either base64 problem, or invalid header or claims, or signature malformed."

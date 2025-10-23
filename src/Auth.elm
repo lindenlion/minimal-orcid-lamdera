@@ -23,7 +23,13 @@ backendConfig model =
     , backendModel = model
     , loadMethod = Auth.Flow.methodLoader [ orcidConfig ]
     , handleAuthSuccess = handleAuthSuccess model
-    , isDev = True
+    , isDev =
+        case Env.mode of
+            Env.Production ->
+                False
+
+            Env.Development ->
+                True
     , renewSession = renewSession
     , logout = logout
     }

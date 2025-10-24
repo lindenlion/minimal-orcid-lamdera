@@ -259,8 +259,9 @@ viewUser model =
         LoggedIn user ->
             [ break [ H.text "Hello, ", H.a [ A.href <| "#" ++ user.unique ] [ H.text <| Maybe.withDefault "NoName" user.name ] ]
             , H.p [ A.style "text-align" "center", A.style "padding" "20px" ]
-                [ H.button [ E.onClick BackendSignoutRequested ]
-                    [ H.text "Logout" ]
+                -- [ H.button [ E.onClick BackendSignoutRequested ][ H.text "Logout here, but stay signed in on Orcid" ]
+                -- The simplest way to sign out completely is to make a new login request with prompt=login
+                [ H.button [ E.onClick OrcidPromptLoginRequested ] [ H.text "Logout here and on Orcid" ]
                 ]
             ]
 

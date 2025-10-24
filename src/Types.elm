@@ -58,12 +58,12 @@ type ToFrontend
 
 
 type LoginState
-    = Loading
-    | Anonymous
-    | LoginTokenSent
-    | LoginProposal UserInfo
-    | LoggedIn UserInfo
-    | SignedOut
+    = Loading -- Asking backend
+    | Anonymous -- Confirmed by backend
+    | LoginRequest -- Login Intention registered
+    | LoginProposal UserInfo -- Asking user to check they signed in with the correct user
+    | LoggedIn UserInfo -- Successful authentication completed
+    | SignedOut -- Optional fragile state after local signout, IdProvider still signed in
 
 
 

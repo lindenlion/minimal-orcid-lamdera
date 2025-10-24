@@ -98,7 +98,7 @@ update msg model =
             ( { model | lion = i }, Cmd.none )
 
         OrcidLoginRequested ->
-            Auth.Flow.signInRequested "OAuthOrcid" model Nothing
+            Auth.Flow.signInRequested "OAuthOrcid" { model | login = LoginRequest } Nothing
                 |> Tuple.mapSecond (AuthToBackend >> Lamdera.sendToBackend)
 
         ConfirmLoginAs user ->
@@ -164,8 +164,8 @@ viewTitle login =
         Anonymous ->
             "Hello, world"
 
-        LoginTokenSent ->
-            "Token sent"
+        LoginRequest ->
+            "Ready for takeoff!"
 
         LoginProposal userinfo ->
             "Are you " ++ Maybe.withDefault "NoName" userinfo.name ++ "?"
@@ -241,8 +241,8 @@ viewUser model =
                 ]
             ]
 
-        LoginTokenSent ->
-            [ break [ H.text "Login request sent... waiting for response from server." ] ]
+        LoginRequest ->
+            [ break [ H.text "Preparing login request... you will be redirected shortly." ] ]
 
         LoginProposal user ->
             let

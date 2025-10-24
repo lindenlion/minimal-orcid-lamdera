@@ -8,25 +8,24 @@ module Env exposing (orcidAppClientId, orcidAppClientSecret, useOrcidSandbox)
 
 orcidAppClientId : String
 orcidAppClientId =
-    if useOrcidSandbox then
-        "APP-KASX8EPTRUT9I5HX"
-
-    else
-        -- see lamdera dashboard
-        ""
+    "APP-KASX8EPTRUT9I5HX"
 
 
 orcidAppClientSecret : String
 orcidAppClientSecret =
-    if useOrcidSandbox then
-        "c2c9ce54-dec5-4ad4-85e9-be54ba8cf44a"
+    "c2c9ce54-dec5-4ad4-85e9-be54ba8cf44a"
 
-    else
-        -- see lamdera dashboard
-        ""
+
+sandboxString : String
+sandboxString =
+    "sandbox"
 
 
 useOrcidSandbox : Bool
 useOrcidSandbox =
     -- set to False on lamdera dashboard
-    True
+    if sandboxString == "sandbox" then
+        True
+
+    else
+        False

@@ -58,7 +58,7 @@ updateFromBackend authToFrontendMsg model =
 
 renewSession : Lamdera.SessionId -> Lamdera.ClientId -> BackendModel -> ( BackendModel, Cmd BackendMsg )
 renewSession _ _ model =
-    Debug.todo "renewSession is not implemented yet"
+    ( model, Cmd.none )
 
 
 handleAuthSuccess :

@@ -1,11 +1,10 @@
 module Auth exposing (backendConfig, updateFromBackend)
 
-import Auth.Common exposing (Method(..), UserInfo)
+import Auth.Common exposing (Method(..))
 import Auth.Flow
 import Auth.Method.OAuthOrcid
-import Dict exposing (Dict)
-import Dict.Extra as Dict
-import Env
+import Dict
+import Env exposing (Mode(..))
 import Lamdera exposing (ClientId, SessionId)
 import Time
 import Types exposing (..)
@@ -25,10 +24,10 @@ backendConfig model =
     , handleAuthSuccess = handleAuthSuccess model
     , isDev =
         case Env.mode of
-            Env.Production ->
+            Production ->
                 False
 
-            Env.Development ->
+            Development ->
                 True
     , renewSession = renewSession
     , logout = logout

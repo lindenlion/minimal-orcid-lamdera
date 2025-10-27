@@ -429,12 +429,7 @@ makeTokenRequestWith grantType decoder extraFields toMsg { credentials, code, ur
 
         headers =
             makeHeaders <|
-                case credentials.secret of
-                    Nothing ->
-                        Nothing
-
-                    Just secret ->
-                        Just { clientId = credentials.clientId, secret = secret }
+                Maybe.map (\secret -> { clientId = credentials.clientId, secret = secret }) credentials.secret
     in
     makeRequest decoder toMsg url headers body
 

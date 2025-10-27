@@ -19,8 +19,7 @@ type alias FrontendModel =
 
 
 type alias BackendModel =
-    { message : String
-    , pendingAuths : Dict Lamdera.SessionId Auth.Common.PendingAuth
+    { pendingAuths : Dict Lamdera.SessionId Auth.Common.PendingAuth
     , sessions : Dict SessionId ( Bool, UserInfo )
     }
 

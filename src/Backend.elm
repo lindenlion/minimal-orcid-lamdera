@@ -17,14 +17,13 @@ app =
         { init = init
         , update = update
         , updateFromFrontend = updateFromFrontend
-        , subscriptions = \m -> Sub.none
+        , subscriptions = \_ -> Sub.none
         }
 
 
 init : ( Model, Cmd BackendMsg )
 init =
-    ( { message = "Hello!"
-      , pendingAuths = Dict.empty
+    ( { pendingAuths = Dict.empty
       , sessions = Dict.empty
       }
     , Cmd.none

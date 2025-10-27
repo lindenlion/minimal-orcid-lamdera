@@ -4,9 +4,7 @@ import Base64.Encode as Base64
 import Browser.Navigation exposing (Key)
 import Bytes exposing (Bytes)
 import Bytes.Encode as Bytes
-import Dict exposing (Dict)
-import Http
-import Json.Decode as Json
+import Dict
 import OAuth
 import OAuth.AuthorizationCode as OAuth
 import Process

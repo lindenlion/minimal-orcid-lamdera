@@ -8,7 +8,6 @@ import Http
 import Json.Decode as Json
 import OAuth
 import OAuth.AuthorizationCode as OAuth
-import Process
 import SHA1
 import Task exposing (Task)
 import Time

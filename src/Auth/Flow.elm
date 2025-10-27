@@ -1,18 +1,16 @@
 module Auth.Flow exposing (..)
 
 import Auth.Common exposing (LogoutEndpointConfig(..), MethodId, ToBackend(..))
-import Auth.Method.OAuthOrcid
 import Auth.Protocol.OAuth
 import Browser.Navigation as Navigation
 import Dict exposing (Dict)
 import List.Extra as List
 import OAuth
 import OAuth.AuthorizationCode as OAuth
-import Process
 import Task
 import Time
 import Url exposing (Protocol(..), Url)
-import Url.Builder exposing (QueryParameter)
+import Url.Builder
 
 
 init :
@@ -80,7 +78,7 @@ updateFromFrontend { asBackendMsg } clientId sessionId authToBackend model =
             ( model
             , Time.now
                 |> Task.perform
-                    (\t ->
+                    (\_ ->
                         asBackendMsg <|
                             Auth.Common.AuthRenewSession sessionId clientId
                     )
@@ -90,7 +88,7 @@ updateFromFrontend { asBackendMsg } clientId sessionId authToBackend model =
             ( model
             , Time.now
                 |> Task.perform
-                    (\t ->
+                    (\_ ->
                         asBackendMsg <|
                             Auth.Common.AuthLogout sessionId clientId
                     )

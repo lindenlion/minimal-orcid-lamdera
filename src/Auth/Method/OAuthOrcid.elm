@@ -10,7 +10,7 @@ import JWT exposing (..)
 import Json.Decode as Json
 import OAuth.AuthorizationCode as OAuth
 import Task exposing (Task)
-import Time exposing (Posix)
+import Time
 import Url exposing (Url)
 
 
